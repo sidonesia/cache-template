@@ -1,0 +1,795 @@
+#include "CacheConstIterator.h"
+#include <iterator>
+
+/* QUESTIONS:
+ *
+ * should dereferencing an iterator
+ * that points to nothing throw an exception
+ * or just crash as normal ?
+ */
+
+/*
+ * bugs to fix make sure the ++ operator is done for both sides
+ * as well as the -- operator
+ *
+ * make sure that an assignement of the const_itertor from
+ * a standard iterator from in a loop is doable
+ *
+ * ensure that the assignment operator for iterators work
+ */
+
+/*
+ *	constructor with no parameters this will
+ *  be used incase the client code initialises
+ *  with out using begin
+ */
+template <typename VALUE> 
+CacheConstInternalIterator<VALUE>::CacheConstInternalIterator()
+{
+	// make sure to check that this is null when
+	// the user tries to use it and it is a null
+	this->_MapPtr = NULL;
+}
+
+template <typename VALUE> 
+CacheConstInternalIterator<VALUE>::CacheConstInternalIterator(int type)
+{
+}
+
+template <typename VALUE>
+list <CacheConstInternalIterator<VALUE>*>*
+CacheConstInternalIterator<VALUE>::getList()
+{
+	return (this->_observerlist);
+}
+
+template <typename VALUE> 
+CacheConstInternalIterator<VALUE>::CacheConstInternalIterator
+			(
+				CacheInternalIterator<VALUE> CI
+			)
+{
+	this->iterator_type = CI.getIteratorType();
+	this->_MapPtr = CI.getInternalMapAddress();
+	this->isIteratorValid = CI.getIsIteratorValid();
+	//this->_observerlist           = CI.getList();
+		
+	/*
+	 * get the current position of the forward_iterator
+	 */
+	if (this->iterator_type == FOR_ITERATOR)
+	{
+		if (CI.getBeginOrEnd() == START_ITER)
+		{
+			this->_current_const_map_iter = _MapPtr->begin();
+			this->currentHashCode   =  _current_const_map_iter->first->hashCode();
+			//this->_current_const_map_iter = CI.getInternalMapIterator();
+		}
+		if (CI.getBeginOrEnd() ==BACKW_ITER)
+		{
+			this->_current_const_map_iter = _MapPtr->end();
+			this->currentHashCode   =  -10000;
+		}
+	}
+	//getBeginOrEnd
+	/*
+	 * get the current position of the reverse_iterator
+	 */
+	if (this->iterator_type == REV_ITER)
+	{
+		/*
+		this->_current_const_rev_map_iter 
+			= CI.getInternalReverseMapIterator();
+		*/
+		if (CI.getBeginOrEnd() == START_ITER)
+		{
+			this->_current_const_rev_map_iter = _MapPtr->rbegin();
+			this->currentHashCode   =  _current_const_map_iter->first->hashCode();
+		}
+			//this->_current_const_map_iter = CI.getInternalMapIterator();
+		if (CI.getBeginOrEnd() ==BACKW_ITER)
+		{
+			this->_current_const_rev_map_iter = _MapPtr->rend();
+			this->currentHashCode   =  -10000;
+		}
+	}
+}
+
+/*
+ * will return the type of iterator 
+ * the this iterator is
+ */
+template <typename VALUE>
+int CacheConstInternalIterator<VALUE>::getIteratorType()
+{
+	return (this->iterator_type);
+}
+
+template <typename VALUE>
+const Key* CacheConstInternalIterator<VALUE>
+        ::getInternalKeyMapInterator() const
+		{
+		        if (this->iterator_type == FOR_ITERATOR)
+	                return (this->_current_const_map_iter->first);
+
+		        if (this->iterator_type == REV_ITER)
+	                return (this->_current_const_rev_map_iter->first);
+
+        return (this->_current_const_rev_map_iter->first);
+	}
+
+
+/*
+ * constructor with a map parameter
+ * this is called when begin or end is called
+ * will construct it with a map and check agains
+ * the map value
+ */
+template <typename VALUE> 
+CacheConstInternalIterator<VALUE>::
+		CacheConstInternalIterator
+				(
+					int type, 
+					map <const Key*, VALUE* ,hashcode_compare>*  MapPtr,
+					int start_or_end
+			    )
+{
+	/* will define the type of the iterator */
+	this->iterator_type     = type;
+	this->iterator_beginEnd = start_or_end;
+	/* will define the map the iterator is iterating for */
+	this->_MapPtr           = MapPtr; 
+	this->mapsize =         MapPtr->size();
+
+
+	/* will show the current position of the map iterator */
+	/* we need to determine where the iterator points to at the moment */
+	
+	/*
+	 * if this is a forward iterator do the following
+	 */
+	if (type == FOR_ITERATOR)
+	{
+		if (start_or_end == START_ITER)
+			this->_current_const_map_iter = MapPtr->begin();
+		else if (start_or_end == BACKW_ITER)
+			this->_current_const_map_iter = MapPtr->end();
+	}
+	
+	/*
+	 *  if this is a reverse iterator do the following 
+	 */
+	if (type == REV_ITER)
+	{
+		if (start_or_end == START_ITER)
+			this->_current_const_rev_map_iter = MapPtr->rbegin();
+		else if (start_or_end == BACKW_ITER)
+			this->_current_const_rev_map_iter = MapPtr->rend();
+	}
+
+	this->isIteratorValid = true;
+}
+
+/*
+ *	destructor
+ */
+template <typename VALUE> 
+CacheConstInternalIterator<VALUE>::~CacheConstInternalIterator()
+{
+	// nothing to destruct really 
+}
+
+/*
+ * compare 2 iterators together
+ *
+ * FOR all forms of iterators this part of the
+ * code stays the same, because we are simply 
+ * comparing 2 different values together
+ * ---------------------------------------
+ * TAGGED AS: SAME FOR ALL DIFF ITER TYPES
+ * ---------------------------------------
+ */
+template <typename  VALUE>
+bool CacheConstInternalIterator< VALUE>::
+				operator==(const CacheConstInternalIterator<VALUE>& CI)
+{
+	/*
+	 * user tries to use a null iterator
+	 */	
+	if (this->_MapPtr == NULL)
+		throw InvalidIteratorUsageException();
+	/*
+	 * checks to see if we are comparing from the same map
+	 * */
+	
+	if (this->_MapPtr != CI.getInternalMapAddress())
+		throw InvalidIteratorUsageException();
+
+	// or if the iterator is now nolonger valid
+	//if (this->isIteratorValid == false )
+	//	throw InvalidIteratorUsageException();
+	
+	// will do the comparison, if they equal then we will
+	// return true otherwise they dont equal and we return
+	// false
+	
+	if (this->iterator_type == FOR_ITERATOR)
+	{
+		if (this->_current_const_map_iter == 
+				CI.getInternalMapIterator() 
+	   	   )
+				return true;
+		else
+				return false;
+	}
+
+	if ( this->iterator_type == REV_ITER)
+	{
+		if (this->_current_const_rev_map_iter == 
+				CI.getInternalReverseMapIterator()
+	   	   )
+				return true;
+		else
+				return false;
+	}
+	return true;
+}
+
+/*
+ * allows the assignment of one const
+ * iterator to another
+ */
+template <typename VALUE>
+CacheConstInternalIterator<VALUE>&
+	CacheConstInternalIterator<VALUE>::
+	operator=(CacheConstInternalIterator<VALUE> const_iter)
+{
+	this->iterator_type = const_iter.getIteratorType();
+	this->_observerlist  = const_iter.getList();
+	// ensure that the iterator is valid, if it isnt
+	// we need to know so do this assignment
+	this->isIteratorValid 
+			= const_iter.getIteratorStatus();
+	
+	// get the map this iterator is for otherwise
+	// we dont know who its iterating for
+	this->_MapPtr = const_iter.getInternalMapAddress();
+
+	if (this->iterator_type == FOR_ITERATOR)
+	{
+		this->_current_const_map_iter = non_const_iter.getInternalMapIterator();
+		typename map<const Key*,VALUE*,hashcode_compare>::const_iterator c_i = _MapPtr->end();
+		if (const_iter.getInternalMapIterator() !=  c_i)
+		{
+			this->currentHashCode = const_iter.
+				getInternalMapIterator()->
+					first->
+						hashCode();
+		}
+		else
+		{
+			this->currentHashCode = -10000;
+		}
+	}
+	if (this->iterator_type == REV_ITER)
+	{
+		this->_current_const_rev_map_iter = non_const_iter.getInternalReverseMapIterator();
+		typename map<const Key*,VALUE*,hashcode_compare>::const_reverse_iterator 
+						r_i = _MapPtr->rend();
+		if (const_iter.getInternalReverseMapIterator() !=  r_i)
+		{
+			this->currentHashCode = const_iter.
+				getInternalReverseMapIterator()->
+					first->
+						hashCode();
+		}
+		else
+		{
+			this->currentHashCode = -10000;
+		}
+
+	}
+	return (*this); 
+}
+
+
+template <typename VALUE>
+int  CacheConstInternalIterator<VALUE>::getBeginOrEnd()
+{
+	return (this->iterator_beginEnd);
+}
+
+/*
+ * assigning a non const iterator to a const iterator
+ */
+template <typename VALUE>
+CacheConstInternalIterator<VALUE>&
+	CacheConstInternalIterator<VALUE>::
+	operator=(CacheInternalIterator<VALUE> non_const_iter)
+{
+	this->iterator_type = non_const_iter.getIteratorType();
+	this->isIteratorValid 
+			= const_iter.getIteratorStatus();
+	this->_MapPtr = non_const_iter.getInternalMapAddress();
+
+	if (this->iterator_type == FOR_ITERATOR)
+	{
+		// get the actual internal map iterator
+		this->_current_const_map_iter 
+				= non_const_iter.getInternalMapIterator();
+	}
+	if (this->iterator_type == REV_ITER)
+	{
+		// get the actual internal map iterator
+		this->_current_const_rev_map_iter 
+				= non_const_iter.getInternalReverseMapIterator();
+	}
+	return (*this);	
+}
+	
+
+/*
+ * Will return the current iterator to the map
+ * */
+template <typename VALUE>
+typename map<const Key*, VALUE*,hashcode_compare>::const_iterator
+	CacheConstInternalIterator<VALUE>::
+		getInternalMapIterator() const
+{
+	return (this->_current_const_map_iter);
+}
+
+template <typename  VALUE>
+typename map<const Key*,  VALUE*,hashcode_compare>::const_reverse_iterator
+	CacheConstInternalIterator<VALUE>::
+		getInternalReverseMapIterator() const
+{
+	return (this->_current_const_rev_map_iter);
+}
+
+/*
+ * compare 2 iterators together
+ *
+ * FOR all forms of iterators this part of the
+ * code stays the same, because we are simply 
+ * comparing 2 different values together
+ * ---------------------------------------
+ * TAGGED AS: SAME FOR ALL DIFF ITER TYPES
+ * ---------------------------------------
+ */
+
+template <typename  VALUE>
+bool CacheConstInternalIterator<VALUE>::
+				operator!=(const CacheConstInternalIterator< VALUE>& CI)
+{
+	/*
+	 * user tries to use a null iterator
+	 */	
+	if (this->_MapPtr == NULL)
+		throw InvalidIteratorUsageException();
+
+	// if we are trying to compare 2 different
+	// iterators from 2 different maps then we
+	// throw the exception
+
+	if (this->_MapPtr != CI.getInternalMapAddress())
+		throw InvalidIteratorUsageException();
+
+	// if the iterator is no longer valid then we will 
+	// throw this exception if we try to compare them
+
+	//if (this->isIteratorValid == false )
+	//		throw InvalidIteratorUsageException();
+
+	/* handle the forward iterators */
+	if (this->iterator_type == FOR_ITERATOR)
+	{
+		if (
+			this->_current_const_map_iter != 
+			CI.getInternalMapIterator()
+	   	   )
+			return true;
+		else
+			return false;
+	}
+	
+	/* handle the reverse iterators */
+	if (this->iterator_type == REV_ITER)
+	{
+		if (
+			this->_current_const_rev_map_iter != 
+			CI.getInternalReverseMapIterator()
+	   	   )
+				return true;
+		else
+				return false;
+	}
+	
+	//  dummy return value, it will never get here !
+	return true;
+}
+
+/*
+ * increment the iterator 
+ *
+ * code will be different when this is a reverse iterator
+ * because this will really do a backward iteration of the
+ * map not a forward one
+ * 
+ * ---------------------------------------------------
+ * TAGGED AS BEING DIFFERENT FOR FORWARDS AND REVERSE
+ * ITERATORS CHANGE CODE FOR REVERSE ITERATORS
+ * ---------------------------------------------------
+ * return a copy this is a i++ operator
+ **/
+template <typename  VALUE>
+CacheConstInternalIterator<VALUE>&
+	CacheConstInternalIterator<VALUE>::operator++()
+{
+	/*
+	 * user tries to use a null iterator
+	 */	
+
+	
+	if (this->_MapPtr == NULL)
+	{
+		throw InvalidIteratorUsageException();
+	}
+	
+	/*
+	 * handle the forward iterator
+	 */
+	if (this->iterator_type == FOR_ITERATOR)
+	{
+		typename map<const Key*,VALUE*, hashcode_compare>
+				::const_iterator const_itr = _MapPtr->end();
+
+		++_current_const_map_iter;
+		if ((this->_current_const_map_iter) == const_itr)
+		{
+			/*
+			cout << "++operator throw IteratorOutOfBoundsException() " << endl;
+			throw IteratorOutOfBoundsException();
+			*/
+			this->isIteratorValid = false;
+			return (*this);
+		}
+
+		currentHashCode = _current_const_map_iter->first->hashCode();
+	}
+	/*
+	 * handle the reverse iterator
+	 */
+	if (this->iterator_type == REV_ITER)
+	{
+		++_current_const_rev_map_iter;
+		typename map<const Key*,VALUE*, hashcode_compare>
+				::const_reverse_iterator const_reverse_itr = _MapPtr->rend();
+		if (this->_current_const_rev_map_iter == const_reverse_itr)
+		{
+			/*
+			cout << "++operator throw IteratorOutOfBoundsException() " << endl;
+			throw IteratorOutOfBoundsException();
+			*/
+			this->isIteratorValid = false;
+			return (*this);
+		}
+		currentHashCode = _current_const_rev_map_iter->first->hashCode();
+	}
+	// if the iterator is not at the end of the
+	// map proceed to incremenet the iterator
+
+	return (*this);
+}
+
+/*
+ * this is the ++ operator where by we return a copy
+ * not a reference like the above one
+ *
+ * return a reference ++i operator
+ */
+template <typename  VALUE>
+CacheConstInternalIterator<VALUE>
+	CacheConstInternalIterator<VALUE>::operator++(int add)
+{
+	if (this->_MapPtr == NULL)
+	{
+		throw InvalidIteratorUsageException();
+	}
+	CacheConstInternalIterator<VALUE> v = *this;
+	
+	if (this->iterator_type == FOR_ITERATOR)
+	{
+		typename map<const Key*,VALUE*, hashcode_compare>
+			::const_iterator const_itr = _MapPtr->end();
+
+		_current_const_map_iter++;
+		if ((this->_current_const_map_iter) == const_itr)
+		{
+			/*
+			cout << "operator++ throw IteratorOutOfBoundsException() " << endl;
+			throw IteratorOutOfBoundsException();
+			*/
+			this->isIteratorValid = false;
+			return (v);
+		}
+
+		currentHashCode = _current_const_map_iter->first->hashCode();
+	}
+	/*
+	 * handle the reverse iterator condition
+	 */	
+	if (this->iterator_type == REV_ITER)
+	{
+		_current_const_rev_map_iter++;
+		typename map<const Key*,VALUE*, hashcode_compare>
+		 ::const_reverse_iterator const_reverse_itr = _MapPtr->rend();
+		 /*
+		  * if we are at the end and we are still looking to 
+		  * incremenent we shouldnt, throw an exception
+		  */
+		 if (this->_current_const_rev_map_iter == const_reverse_itr)
+		 {
+		 	/*
+			cout << "operator++ throw IteratorOutOfBoundsException() " << endl;
+		 	throw IteratorOutOfBoundsException();
+			*/
+			this->isIteratorValid = false;
+			return (v);
+		 }
+
+		currentHashCode = _current_const_rev_map_iter->first->hashCode();
+	}
+	return (v);
+}
+
+/*
+ * decremenet the iterator
+ *
+ * code will be different when this is a reverse iterator
+ * because this will really do a backward iteration of the
+ * map not a forward one
+ * 
+ * ---------------------------------------------------
+ * TAGGED AS BEING DIFFERENT FOR FORWARDS AND REVERSE
+ * ITERATORS CHANGE CODE FOR REVERSE ITERATORS
+ * ---------------------------------------------------
+ *
+ * returns a copy equivalant to i-- 
+ *
+ * */
+template <typename  VALUE>
+CacheConstInternalIterator<VALUE>
+	CacheConstInternalIterator<VALUE>::operator--(int take)
+{
+	// ensure that the iterator is not null
+	if (this->_MapPtr == NULL)
+	{
+		throw InvalidIteratorUsageException();
+	}
+	
+	CacheConstInternalIterator<VALUE> minus_minus = *this;
+	
+	/* handle forward iterators */
+	if (this->iterator_type == FOR_ITERATOR)
+	{
+		if ((this->_current_const_map_iter) == this->_MapPtr->begin())
+		{
+			/*
+			cout << "operator-- throw IteratorOutOfBoundsException() " << endl;
+			throw IteratorOutOfBoundsException();
+			*/
+			this->isIteratorValid = false;
+			return (minus_minus);
+		}
+		_current_const_map_iter--;
+		currentHashCode = _current_const_map_iter->first->hashCode();
+	}
+	/* handle reverse iterators */
+	if (this->iterator_type == REV_ITER)
+	{
+		typename map<const Key*,VALUE*,hashcode_compare>::const_reverse_iterator const_rev 
+							= this->_MapPtr->rbegin();
+		if ((this->_current_const_rev_map_iter) == const_rev )
+		{
+			/*
+			cout << "operator-- throw IteratorOutOfBoundsException() " << endl;
+			throw IteratorOutOfBoundsException();
+			*/
+			this->isIteratorValid = false;
+			return (minus_minus);
+		}
+		_current_const_rev_map_iter--;
+		currentHashCode = _current_const_rev_map_iter->first->hashCode();
+	}
+
+	// if the iterator is not at the beginning
+	// proceed to decremenet the iterator
+	return (minus_minus);
+}
+
+/*
+ * returns a reference to the modified object
+ * equailvalant to --i
+ */
+
+template <typename  VALUE>
+CacheConstInternalIterator<VALUE>&
+	CacheConstInternalIterator<VALUE>::operator--()
+{
+	// ensure that the iterator is not null
+	if (this->_MapPtr == NULL)
+	{
+		throw InvalidIteratorUsageException();
+	}
+	
+	/* handle forward iterators */
+	if (this->iterator_type == FOR_ITERATOR)
+	{
+		typename map<const Key*,VALUE*,hashcode_compare>::const_iterator 
+								c_iter = this->_MapPtr->begin();
+		if ((this->_current_const_map_iter) == c_iter)
+		{
+			/*
+			cout << "--operator throw IteratorOutOfBoundsException() " << endl;
+			throw IteratorOutOfBoundsException();
+			*/
+			this->isIteratorValid = false;
+			return (*this);
+		}
+		--_current_const_map_iter;
+		currentHashCode = _current_const_map_iter->first->hashCode();
+	}
+	/* handle reverse iterators */
+	if (this->iterator_type == REV_ITER)
+	{
+		typename map<const Key*,VALUE*,hashcode_compare>::const_reverse_iterator 
+								r_c_iter = this->_MapPtr->rbegin();
+
+		if ((this->_current_const_rev_map_iter) == r_c_iter)
+		{
+			/*
+			cout << "--operator reverse throw IteratorOutOfBoundsException() " << endl;	
+			throw IteratorOutOfBoundsException();
+			*/
+			this->isIteratorValid = false;
+			return(*this);
+		}
+		--_current_const_rev_map_iter;
+		currentHashCode = _current_const_rev_map_iter->first->hashCode();
+	}
+
+	// if the iterator is not at the beginning
+	// proceed to decremenet the iterator
+	return (*this);
+	
+}
+
+/*
+ * Will assign values to the iterator
+ *
+ * FOR all forms of iterators this part of the
+ * code stays the same, because we are simply 
+ * comparing 2 different values together
+ * ---------------------------------------
+ * TAGGED AS: SAME FOR ALL DIFF ITER TYPES
+ * ---------------------------------------
+ **/
+
+/*
+ * dereference an iterator
+ * */
+template <typename VALUE>
+VALUE&
+	CacheConstInternalIterator<VALUE>::operator*() const
+{
+	// ensure that the iterator is not null
+	if (this->_MapPtr == NULL)
+		throw InvalidIteratorUsageException();
+	
+	if ((this->mapsize != 0) && (_MapPtr->size() == 0))
+	{
+		throw InvalidIteratorUsageException();
+	}
+
+	 if (this->iterator_type == FOR_ITERATOR)
+	 {
+	 	 if (currentHashCode != _current_const_map_iter->first->hashCode())
+		 	throw InvalidIteratorUsageException();
+		if	(	this->isIteratorValid == false)
+			 	 throw InvalidIteratorUsageException();
+	 }
+
+	 if (this->iterator_type == REV_ITER)
+	 {
+		 	 if (currentHashCode != _current_const_rev_map_iter->first->hashCode())
+			 	 throw InvalidIteratorUsageException();
+		if	(	this->isIteratorValid == false)
+			 	 throw InvalidIteratorUsageException();
+	 }
+	
+	if (this->iterator_type == FOR_ITERATOR)
+		return (*(this->_current_const_map_iter->second));
+	
+	if (this->iterator_type == REV_ITER)
+		return (*(this->_current_const_rev_map_iter->second));
+	
+	/* dummy return value */
+	return (*(this->_current_const_rev_map_iter->second));
+}
+
+/*
+ * access memeber functions form the iterator
+ * */
+template <typename VALUE>
+VALUE*
+	CacheConstInternalIterator<VALUE>::operator->() const
+{
+	// ensure that the iterator is not null
+	if (this->_MapPtr == NULL)
+		throw InvalidIteratorUsageException();
+	
+	if ((this->mapsize != 0) && (_MapPtr->size() == 0))
+	{
+		throw InvalidIteratorUsageException();
+	}
+
+	
+	 if (this->iterator_type == FOR_ITERATOR)
+	 {
+
+	 	 if (currentHashCode != _current_const_map_iter->first->hashCode())
+		 	throw InvalidIteratorUsageException();
+		if	(	this->isIteratorValid == false)
+			 	 throw InvalidIteratorUsageException();
+	 }
+
+	 if (this->iterator_type == REV_ITER)
+	 {
+
+		 	 if (currentHashCode != _current_const_rev_map_iter->first->hashCode())
+			 	 throw InvalidIteratorUsageException();
+		if	(	this->isIteratorValid == false)
+			 	 throw InvalidIteratorUsageException();
+	 }
+
+	if (this->iterator_type == FOR_ITERATOR)
+		return (this->_current_const_map_iter->second);
+	if (this->iterator_type == REV_ITER)
+		return (this->_current_const_rev_map_iter->second);
+	
+	/* dummy return value , we need to make dummy values */
+	return (this->_current_const_rev_map_iter->second);
+}
+
+/*
+ * set the status of the iterator
+ * */
+template <typename VALUE>
+void CacheConstInternalIterator<VALUE>
+		::setIteratorStatus(bool status)
+{
+	this->isIteratorValid = status;
+}
+
+/*
+ * will get the status of the iterator
+ * */
+template <typename VALUE>
+bool CacheConstInternalIterator<VALUE>
+		::getIteratorStatus()
+{
+	return (this->isIteratorValid);
+}
+
+/*
+ * will return the memory address of the map its pointing to
+ * when if they dont equal it means they point to a different
+ * hashmap
+ * */
+template <typename VALUE>
+map<const Key*,VALUE*,hashcode_compare>* CacheConstInternalIterator<VALUE>
+		::getInternalMapAddress() const 
+{
+	return (this->_MapPtr);
+}

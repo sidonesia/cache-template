@@ -1,0 +1,200 @@
+#include "CacheIterator.h"
+#include <algorithm>
+#include "common_includes.h"
+#include "Exceptions.h"
+
+#define FORWARD  1
+#define BACKWARD 3
+
+template <typename VALUE>
+CacheImpl<VALUE>::CacheImpl(unsigned int capacity)
+{
+	_capacity = capacity;	
+}
+
+/*
+ * insert a new element into
+ * the cache structure 
+ */
+template <typename VALUE>
+void CacheImpl<VALUE>::insert(const Key& k,const VALUE& v)
+{   	
+	VALUE* vType = new VALUE(v);
+	/*
+	 * Case if the key is found in the map simply
+	 * replace the value and promote the key to 
+	 * the front
+	 */
+	if (_map.find(&k) != _map.end()) 
+	{
+		_map[&k] = vType;
+		_list.remove(*(find_if(_list.begin(), _list.end(), KeyCompare(&k))));
+		_list.push_front(&k);
+		return;
+	}
+	/*
+	 * if capacity is still not reached and the 
+	 * key is not found in the map simply add this
+	 * key (simplest case)
+	 */
+
+	if (_map.size() < _capacity)
+	{
+		_list.push_front(&k);
+		_map[&k] = vType;
+		return;
+	}
+	/*
+	 * if the map size is now equal or somehow greater
+	 * then the capacity get rid of one of the elements
+	 * and add this new one
+	 */
+	if (_map.size() >= _capacity)
+	{
+		const Key* LRU = _list.back();
+
+		_map.erase(_map.find(LRU));
+		_list.remove(*(find_if(_list.begin(),_list.end(),KeyCompare(LRU))));	
+		_map[&k] = vType;
+		_list.push_front(&k);
+		return;
+	}
+}
+
+/*
+ * find the data in the cache and promote it to
+ * the front
+ */
+template <typename VALUE>
+VALUE CacheImpl<VALUE>::lookup(const Key& k)
+{    
+	if(_map.find(&k) == _map.end())
+	{
+		throw MissingKeyException();
+	}
+	else
+	{		
+		typename map<const Key*, VALUE*, hashcode_compare>::iterator 
+			elementFound = _map.find(&k);
+
+		_list.remove(*(find_if(_list.begin(), _list.end(), KeyCompare(&k))));
+		_list.push_front(&k);
+				
+		return *(elementFound->second);
+	}										
+}
+
+template <typename VALUE>
+size_t CacheImpl<VALUE>::size() const
+{
+    return _list.size();   
+}
+
+template <typename VALUE>
+size_t CacheImpl<VALUE>::capacity() const
+{
+    return _capacity;
+}
+
+template <typename VALUE>
+void CacheImpl<VALUE>::clear()
+{
+	typename map<const Key*, VALUE*, hashcode_compare>::iterator start = _map.begin();
+	typename map<const Key*, VALUE*, hashcode_compare>::iterator end = _map.end();
+	
+	while(start != end)
+	{			
+		delete(start->second);	
+		start++;
+	}
+	_map.clear();
+	_list.clear();
+			
+}
+
+template <typename VALUE>
+inline 
+typename CacheImpl<VALUE>::iterator CacheImpl<VALUE>::begin()
+{
+    typename CacheImpl<VALUE>::iterator forward_begin(FORWARD,&_map, START_ITER);
+    return forward_begin;
+}
+
+template <typename VALUE>
+inline 
+typename CacheImpl<VALUE>::iterator CacheImpl<VALUE>::end()
+{
+    typename CacheImpl<VALUE>::iterator forward_end(FORWARD,&_map,BACKW_ITER);
+    return forward_end;
+}
+
+template <typename VALUE>
+inline 
+typename CacheImpl<VALUE>::reverse_iterator CacheImpl<VALUE>::rbegin()
+{
+    typename CacheImpl<VALUE>::reverse_iterator reverse_begin(BACKWARD,&_map,START_ITER);
+	return reverse_begin;
+}
+
+template <typename VALUE>
+inline 
+typename CacheImpl<VALUE>::reverse_iterator CacheImpl<VALUE>::rend()
+{
+    typename CacheImpl<VALUE>::reverse_iterator reverse_end(BACKWARD,&_map,BACKW_ITER);
+    return reverse_end;
+}
+
+template <typename VALUE>
+inline 
+typename CacheImpl<VALUE>::const_iterator CacheImpl<VALUE>::begin() const
+{
+    typename CacheImpl<VALUE>::const_iterator c_forward_begin(FORWARD, &_map ,START_ITER);
+    return c_forward_begin;
+
+}
+
+template <typename VALUE>
+inline 
+typename CacheImpl<VALUE>::const_iterator CacheImpl<VALUE>::end() const
+{
+    typename CacheImpl<VALUE>::const_iterator c_forward_end(FORWARD, &_map,BACKW_ITER);
+    return c_forward_end; 
+}
+
+template <typename VALUE>
+inline 
+typename CacheImpl<VALUE>::const_reverse_iterator CacheImpl<VALUE>::rbegin() const
+{
+    typename CacheImpl<VALUE>::const_reverse_iterator c_reverse_begin(BACKWARD, &_map,START_ITER);
+    return c_reverse_begin;  
+}
+
+template <typename VALUE>
+inline 
+typename CacheImpl<VALUE>::const_reverse_iterator CacheImpl<VALUE>::rend() const
+{
+    typename CacheImpl<VALUE>::const_reverse_iterator c_reverse_end(BACKWARD, &_map, BACKW_ITER);
+    return c_reverse_end;   
+}
+
+template <typename VALUE>
+std::string CacheImpl<VALUE>::snapshot() const
+{
+    std::string snap;
+    list<const Key*>::const_reverse_iterator begin = _list.rbegin();
+    list<const Key*>::const_reverse_iterator end   = _list.rend();
+
+    while(begin != end)
+    {
+        char a[1024];
+        sprintf(a, "%d", (*begin)->hashCode());
+        snap.append(a);
+        begin++;
+		if(begin != end)
+		{
+			snap.append(",");
+		}
+	}
+    return snap;
+}
+
